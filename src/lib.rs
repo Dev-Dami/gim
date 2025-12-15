@@ -5,7 +5,7 @@ pub mod output;
 pub mod tui;
 
 use crate::core::MetricCollector;
-use crate::modules::{cpu::CpuCollector, memory::MemoryCollector};
+use crate::modules::{cpu::CpuCollector, memory::MemoryCollector, disk::DiskCollector};
 use crate::output::{OutputFormat, format_output};
 
 pub fn run() {
@@ -15,6 +15,7 @@ pub fn run() {
     let collectors: Vec<Box<dyn MetricCollector>> = match args.module.as_deref() {
         Some("cpu") => vec![Box::new(CpuCollector::new())],
         Some("memory") => vec![Box::new(MemoryCollector::new())],
+        Some("disk") => vec![Box::new(DiskCollector::new())], // <--- 
         Some(_) => {
             eprintln!("Unknown module: {}", args.module.unwrap());
             std::process::exit(1);
@@ -24,6 +25,7 @@ pub fn run() {
             vec![
                 Box::new(CpuCollector::new()),
                 Box::new(MemoryCollector::new()),
+                Box::new(DiskCollector::new()), // <--- default collectors 
             ]
         }
     };
