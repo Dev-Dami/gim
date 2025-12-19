@@ -1,51 +1,43 @@
-use serde::Serialize;
 use sysinfo::{DiskExt, System, SystemExt};
-use crate::metrics::MetricCollector; // मान लो 'metrics' crate में 'MetricCollector' है
+use std::collections::HashMap;
+use crate::core::{MetricCollector, MetricData, MetricValue};
 
-// 1. डेटा स्ट्रक्चर: हम जो डेटा कलेक्ट करेंगे, वह ऐसा दिखेगा
-#[derive(Debug, Serialize)]
-pub struct DiskMetric {
-    pub name: String,
-    pub total_space_gb: f64,
-    pub used_space_gb: f64,
-    pub free_space_gb: f64,
-    pub file_system: String,
+pub struct DiskCollector;
+
+impl DiskCollector {
+    pub fn new() -> Self {
+        DiskCollector
+    }
 }
 
-// 2. MetricCollector को इम्प्लीमेंट करना
-impl MetricCollector for DiskMetric {
-    // यह फ़ंक्शन sysinfo का इस्तेमाल करके डिस्क की जानकारी कलेक्ट करेगा
-    fn collect() -> Result<Vec<Self>, String> {
-        let mut sys = System::new();
-        // Disks की लिस्ट को रिफ्रेश करते हैं
+impl MetricCollector for DiskCollector {
+    fn collect(&self) -> Result<MetricData, Box<dyn std::error::Error>> {
+        let mut sys = System::new_all();
         sys.refresh_disks_list();
-        
-        let mut metrics = Vec::new();
-        
-        // हर डिस्क के लिए लूप चलाओ
+
+        let mut total: u64 = 0;
+        let mut used: u64 = 0;
+        let mut free: u64 = 0;
+
         for disk in sys.disks() {
-            // बाइट्स को GB में कन्वर्ट करने के लिए
-            const BYTE_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
-            
-            let total_bytes = disk.total_space();
-            let available_bytes = disk.available_space();
-            let used_bytes = total_bytes - available_bytes;
-            
-            // डेटा को स्ट्रक्चर में भर दो
-            let metric = DiskMetric {
-                name: disk.name().to_string_lossy().into_owned(),
-                total_space_gb: total_bytes as f64 / BYTE_TO_GB,
-                used_space_gb: used_bytes as f64 / BYTE_TO_GB,
-                free_space_gb: available_bytes as f64 / BYTE_TO_GB,
-                file_system: String::from_utf8_lossy(disk.file_system()).into_owned(),
-            };
-            metrics.push(metric);
+            total += disk.total_space();
+            free += disk.available_space();
         }
 
-        if metrics.is_empty() {
-            Err("Koi disk metrics collect nahi hue.".to_string())
-        } else {
-            Ok(metrics)
-        }
+        used = total - free;
+
+        let mut map = HashMap::new();
+        map.insert("total".to_string(), MetricValue::Integer(total as i64));
+        map.insert("used".to_string(), MetricValue::Integer(used as i64));
+        map.insert("free".to_string(), MetricValue::Integer(free as i64));
+
+        Ok(MetricData {
+            timestamp: std::time::SystemTime::now(),
+            metrics: map,
+        })
+    }
+
+    fn name(&self) -> &'static str {
+        "disk"
     }
 }
